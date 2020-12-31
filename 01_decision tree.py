@@ -29,30 +29,29 @@ print(data.head())
 # -------------------------------------------------------------------------------
 
 
-# Calculate the gini index for a split dataset
+# Calculate the gini score for a split dataset
 
-def gini_feature(groups, classes):
+def gini_score(groups, unique_classes):
 
-    n_instances = float(sum([len(group) for group in groups]))
-
+    number_samples = float(sum([len(group) for group in groups]))
     gini = 0.0
 
     for group in groups:
 
-        size = float(len(group))
+        group_size = float(len(group))
 
-        if size == 0:
+        if group_size == 0:
 
             continue
 
         score = 0.0
 
-        for class_val in classes:
+        for class_val in unique_classes:
 
-            p = [row[-1] for row in group].count(class_val) / size
+            p = [sample[-1] for sample in group].count(class_val) / group_size
             score += p * p
 
-        gini += (1.0 - score) * (size / n_instances)
+        gini += (1.0 - score) * (group_size / number_samples)
 
     return gini
 
@@ -89,13 +88,19 @@ def get_split(dataset):
         for sample in dataset:
 
             groups = test_split(dataset=dataset, feature_index=feature_index, value=sample[feature_index])
-            gini = gini_feature(groups, unique_classes)
+            gini = gini_score(groups=groups, unique_classes=unique_classes)
+            print('X%d < %.3f Gini=%.3f' % ((feature_index + 1), sample[feature_index], gini))
 
             if gini < b_score:
 
                b_feature, b_value, b_score, b_groups = feature_index, sample[feature_index], gini, groups
 
-    return {'feature': b_feature, 'value':b_value, 'groups': b_groups}
+    return {'feature': b_feature, 'value': b_value, 'groups': b_groups}
+
+
+# -------------------------------------------------------------------------------
+# 3. BUILD A TREE
+# -------------------------------------------------------------------------------
 
 
 dataset = [[2.771244718, 1.784783929, 0], [1.728571309, 1.169761413, 0], [3.678319846, 2.81281357, 0], [3.961043357, 2.61995032, 0],
@@ -174,7 +179,7 @@ class Perceptron:
         """
 
         rgen = np.random.RandomState(seed=1)
-        self.w = rgen.normal(loc=0.0, scale=0.01, size=1 + X.shape[1])
+        self.w = rgen.normal(loc=0.0, scale=0.01, group_size=1 + X.shape[1])
         self.n_misclass = []
 
         for epoch in range(self.n_epochs):

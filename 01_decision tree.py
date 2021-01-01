@@ -103,11 +103,122 @@ def get_split(dataset):
 # -------------------------------------------------------------------------------
 
 
+# Create a terminal node value
+
+def to_terminal(group):
+
+    outcomes = [sample[-1] for sample in group]
+
+    return max(set(outcomes), key=outcomes.count)
+
+
+# Create child splits for a node or make terminal
+
+def split(node, max_depth, min_size, depth):
+
+    left, right = node['groups']
+    del(node['groups'])
+
+    if not left or not right:
+
+        node['left'] = node['right'] = to_terminal(left + right)
+        return
+
+    if depth >= max_depth:
+
+        node['left'], node['right'] = to_terminal(left), to_terminal(right)
+        return
+
+    if len(left) <= min_size:
+        node['left'] = to_terminal(left)
+
+    else:
+
+        node['left'] = get_split(left)
+        split(node['left'], max_depth, min_size, depth+1)
+
+    if len(right) <= min_size:
+        node['right'] = to_terminal(right)
+
+    else:
+
+        node['right'] = get_split(right)
+        split(node['right'], max_depth, min_size, depth+1)
+
+
+# Build a decision tree
+
+def build_tree(train, max_depth, min_size):
+
+    root = get_split(train)
+    split(root, max_depth, min_size, 1)
+
+    return root
+
+
+# Print a decision tree
+
+def print_tree(node, depth=0):
+
+    if isinstance(node, dict):
+
+        print('%s[X%d < %.3f]' % ((depth*' ', (node['feature']+1), node['value'])))
+        print_tree(node['left'], depth+1)
+        print_tree(node['right'], depth+1)
+
+    else:
+
+        print('%s[%s]' % ((depth*' ', node)))
+
+
+# Implement
+
 dataset = [[2.771244718, 1.784783929, 0], [1.728571309, 1.169761413, 0], [3.678319846, 2.81281357, 0], [3.961043357, 2.61995032, 0],
            [2.999208922, 2.209014212, 0], [7.497545867, 3.162953546, 1], [9.00220326, 3.339047188, 1], [7.444542326, 0.476683375, 1],
            [10.12493903, 3.234550982, 1], [6.642287351, 3.319983761, 1]]
-split = get_split(dataset)
-print('Split: [X%d < %.3f]' % ((split['feature']+1), split['value']))
+
+tree = build_tree(dataset, 1, 1)
+print_tree(tree)
+
+
+# -------------------------------------------------------------------------------
+# 4. MAKE PREDICTIONS
+# -------------------------------------------------------------------------------
+
+
+# Make a prediction with a decision tree
+
+def predict(node, sample):
+
+    if sample[node['feature']] < node['value']:
+
+        if isinstance(node['left'], dict):
+
+            return predict(node['left'], sample)
+
+        else:
+
+            return node['left']
+
+    else:
+
+        if isinstance(node['right'], dict):
+
+            return predict(node['right'], sample)
+
+        else:
+
+            return node['right']
+
+
+# Implement
+
+stump = {'feature': 0, 'right': 1, 'value': 6.642287351, 'left': 0}
+
+for sample in dataset:
+
+    prediction = predict(stump, sample)
+    print('Expected=%d, Got=%d' % (sample[-1], prediction))
 
 
 # Extract the class labels

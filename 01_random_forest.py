@@ -1,8 +1,8 @@
-""" DECISION TREE
+""" RANDOM FOREST
     -------------
-    Implementation of a Classification And Regression Tree algorithm for binary classification.
+    Implementation of a Classification And Regression Random Forest algorithm for binary classification.
 
-    Code reference: https://machinelearningmastery.com/implement-decision-tree-algorithm-scratch-python/
+    Code reference: https://machinelearningmastery.com/implement-random-forest-scratch-python/
 """
 
 
@@ -13,11 +13,12 @@
 
 import pandas as pd
 from random import seed, randrange
+from math import sqrt
 
 
 # Set the seed
 
-seed(1)
+seed(2)
 
 
 # -------------------------------------------------------------------------------
@@ -27,34 +28,16 @@ seed(1)
 
 # Import the dataset
 
-data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00267/data_banknote_authentication.txt', header=None)
+data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/undocumented/connectionist-bench/sonar/sonar.all-data', header=None)
 print(data.head())
 
+data = data.replace(['R', 'M'], [0, 1])
 dataset = data.values.tolist()
 
 
 # -------------------------------------------------------------------------------
 # 2. CREATE A SPLIT
 # -------------------------------------------------------------------------------
-
-
-# Split a dataset based on a feature and a feature value
-
-def test_split(dataset, feature_index, value):
-
-    left, right = list(), list()
-
-    for sample in dataset:
-
-        if sample[feature_index] < value:
-
-            left.append(sample)
-
-        else:
-
-            right.append(sample)
-
-    return left, right
 
 
 # Calculate the gini score to evaluate the cost of a split
@@ -84,27 +67,51 @@ def gini_score(groups, unique_classes):
     return gini
 
 
+# Split a dataset based on a feature and a feature value
+
+def test_split(dataset, feature_index, value):
+
+    left, right = list(), list()
+
+    for sample in dataset:
+
+        if sample[feature_index] < value:
+
+            left.append(sample)
+
+        else:
+
+            right.append(sample)
+
+    return left, right
+
+
 # Select the best split point for a dataset
 
-def get_split(dataset):
+def get_split(dataset, n_features):
 
-    number_features = len(dataset[0])-1
+    features = list()
     unique_classes = list(set(sample[-1] for sample in dataset))
     b_feature, b_value, b_score, b_groups = 999, 999, 999, None
 
-    for feature_index in range(number_features):
+    while len(features) < n_features:
+
+        feature_index = randrange(len(dataset[0])-1)
+
+        if feature_index not in features:
+
+            features.append(feature_index)
+
+    for feature_index in features:
 
         for sample in dataset:
 
             groups = test_split(dataset=dataset, feature_index=feature_index, value=sample[feature_index])
             gini = gini_score(groups=groups, unique_classes=unique_classes)
-            print('Split: X{} < {:.3f}, Gini = {:.3f}'.format(feature_index + 1, sample[feature_index], gini))
 
             if gini < b_score:
 
-               b_feature, b_value, b_score, b_groups = feature_index, sample[feature_index], gini, groups
-
-    print('\nBest split: X{} < {:.3f}, Best Gini = {:.3f}'.format(b_feature + 1, b_value, b_score))
+                b_feature, b_value, b_score, b_groups = feature_index, sample[feature_index], gini, groups
 
     return {'feature': b_feature, 'value': b_value, 'groups': b_groups}
 
@@ -125,7 +132,7 @@ def terminal_node_value(group):
 
 # Create child splits for a node or make terminal
 
-def split(node, max_depth, min_size, depth):
+def split(node, max_depth, min_size, n_features, depth):
 
     left, right = node['groups']
     del(node['groups'])
@@ -146,8 +153,8 @@ def split(node, max_depth, min_size, depth):
 
     else:
 
-        node['left'] = get_split(left)
-        split(node['left'], max_depth, min_size, depth+1)
+        node['left'] = get_split(left, n_features)
+        split(node['left'], max_depth, min_size, n_features, depth+1)
 
     if len(right) <= min_size:
 
@@ -155,16 +162,16 @@ def split(node, max_depth, min_size, depth):
 
     else:
 
-        node['right'] = get_split(right)
-        split(node['right'], max_depth, min_size, depth+1)
+        node['right'] = get_split(right, n_features)
+        split(node['right'], max_depth, min_size, n_features, depth+1)
 
 
 # Build a decision tree
 
-def build_tree(training_data, max_depth, min_size):
+def build_tree(training_data, max_depth, min_size, n_features):
 
-    node = get_split(training_data)
-    split(node, max_depth, min_size, 1)
+    node = get_split(training_data, n_features)
+    split(node, max_depth, min_size, n_features, 1)
 
     return node
 
@@ -214,10 +221,50 @@ def predict(node, sample):
             return node['right']
 
 
+# Create a random subsample from the dataset with replacement
+
+def subsample(dataset, ratio):
+
+    sample = list()
+    n_sample = round(len(dataset) * ratio)
+
+    while len(sample) < n_sample:
+
+        index = randrange(len(dataset))
+        sample.append(dataset[index])
+
+    return sample
+
+
+# Make a prediction with a list of bagged trees
+
+def bagging_predict(trees, sample):
+
+    predictions = [predict(tree, sample) for tree in trees]
+
+    return max(set(predictions), key=predictions.count)
+
+
 # -------------------------------------------------------------------------------
 # 5. EVALUATE THE MODEL
 # -------------------------------------------------------------------------------
 
+
+# Classification and Regression Forest Algorithm
+
+def random_forest(train, test, max_depth, min_size, sample_size, n_trees, n_features):
+
+    trees = list()
+
+    for i in range(n_trees):
+
+        sample = subsample(train, sample_size)
+        tree = build_tree(sample, max_depth, min_size, n_features)
+        trees.append(tree)
+
+    predictions = [bagging_predict(trees, row) for row in test]
+
+    return(predictions)
 
 # Classification and Regression Tree Algorithm
 
@@ -236,7 +283,7 @@ def decision_tree(train, test, max_depth, min_size):
 
 # Split a dataset into k folds
 
-def fold_dataset_split(dataset, n_folds):
+def cross_validation_split(dataset, n_folds):
 
     dataset_copy = list(dataset)
     fold_size = int(len(dataset_copy) / n_folds)
@@ -275,7 +322,7 @@ def accuracy_metric(actual, predicted):
 
 def evaluate_algorithm(dataset, algorithm, n_folds, *args):
 
-    folds = fold_dataset_split(dataset, n_folds)
+    folds = cross_validation_split(dataset, n_folds)
     scores = list()
 
     for fold in folds:
@@ -302,9 +349,14 @@ def evaluate_algorithm(dataset, algorithm, n_folds, *args):
 # Evaluate algorithm
 
 n_folds = 5
-max_depth = 5
-min_size = 10
+max_depth = 10
+min_size = 1
+sample_size = 1.0
+n_features = int(sqrt(len(dataset[0])-1))
 
-scores = evaluate_algorithm(dataset, decision_tree, n_folds, max_depth, min_size)
-print('Scores: {}'.format(scores))
-print('Mean Accuracy: {:.3}%'.format(sum(scores)/float(len(scores))))
+for n_trees in [1, 5, 10]:
+
+    scores = evaluate_algorithm(dataset, random_forest, n_folds, max_depth, min_size, sample_size, n_trees, n_features)
+    print('Trees: {}'.format(n_trees))
+    print('Scores: {}'.format(scores))
+    print('Mean Accuracy: {:.3}%'.format(sum(scores)/float(len(scores))))

@@ -1,6 +1,8 @@
 """ DECISION TREE
     -------------
-    Implementation of a CART decision tree for binary classification.
+    Implementation of a Classification And Regression Tree algorithm for binary classification.
+
+    Code reference: https://machinelearningmastery.com/implement-decision-tree-algorithm-scratch-python/
 """
 
 
@@ -9,8 +11,13 @@
 # -------------------------------------------------------------------------------
 
 
-import numpy as np
 import pandas as pd
+from random import seed, randrange
+
+
+# Set the seed
+
+seed(1)
 
 
 # -------------------------------------------------------------------------------
@@ -23,13 +30,15 @@ import pandas as pd
 data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00267/data_banknote_authentication.txt', header=None)
 print(data.head())
 
+dataset = data.values.tolist()
+
 
 # -------------------------------------------------------------------------------
 # 2. CREATE A SPLIT
 # -------------------------------------------------------------------------------
 
 
-# Calculate the gini score for a split dataset
+# Calculate the gini score to evaluate the cost of a split
 
 def gini_score(groups, unique_classes):
 
@@ -56,7 +65,7 @@ def gini_score(groups, unique_classes):
     return gini
 
 
-# Split a dataset based on an attribute and an attribute value
+# Split a dataset based on a feature and a feature value
 
 def test_split(dataset, feature_index, value):
 
@@ -89,11 +98,13 @@ def get_split(dataset):
 
             groups = test_split(dataset=dataset, feature_index=feature_index, value=sample[feature_index])
             gini = gini_score(groups=groups, unique_classes=unique_classes)
-            print('X%d < %.3f Gini=%.3f' % ((feature_index + 1), sample[feature_index], gini))
+            print('Split: X{} < {:.3f}, Gini = {:.3f}'.format(feature_index + 1, sample[feature_index], gini))
 
             if gini < b_score:
 
                b_feature, b_value, b_score, b_groups = feature_index, sample[feature_index], gini, groups
+
+    print('Best split: X{} < {:.3f}, Best Gini = {:.3f}'.format(b_feature + 1, b_value, b_score))
 
     return {'feature': b_feature, 'value': b_value, 'groups': b_groups}
 
@@ -105,7 +116,7 @@ def get_split(dataset):
 
 # Create a terminal node value
 
-def to_terminal(group):
+def terminal_node_value(group):
 
     outcomes = [sample[-1] for sample in group]
 
@@ -121,16 +132,17 @@ def split(node, max_depth, min_size, depth):
 
     if not left or not right:
 
-        node['left'] = node['right'] = to_terminal(left + right)
+        node['left'] = node['right'] = terminal_node_value(left + right)
         return
 
     if depth >= max_depth:
 
-        node['left'], node['right'] = to_terminal(left), to_terminal(right)
+        node['left'], node['right'] = terminal_node_value(left), terminal_node_value(right)
         return
 
     if len(left) <= min_size:
-        node['left'] = to_terminal(left)
+
+        node['left'] = terminal_node_value(left)
 
     else:
 
@@ -138,7 +150,8 @@ def split(node, max_depth, min_size, depth):
         split(node['left'], max_depth, min_size, depth+1)
 
     if len(right) <= min_size:
-        node['right'] = to_terminal(right)
+
+        node['right'] = terminal_node_value(right)
 
     else:
 
@@ -148,12 +161,12 @@ def split(node, max_depth, min_size, depth):
 
 # Build a decision tree
 
-def build_tree(train, max_depth, min_size):
+def build_tree(training_data, max_depth, min_size):
 
-    root = get_split(train)
-    split(root, max_depth, min_size, 1)
+    node = get_split(training_data)
+    split(node, max_depth, min_size, 1)
 
-    return root
+    return node
 
 
 # Print a decision tree
@@ -162,23 +175,13 @@ def print_tree(node, depth=0):
 
     if isinstance(node, dict):
 
-        print('%s[X%d < %.3f]' % ((depth*' ', (node['feature']+1), node['value'])))
-        print_tree(node['left'], depth+1)
-        print_tree(node['right'], depth+1)
+        print('{}[X{} < {:.3f}]'.format(depth*' ', node['feature'] + 1, node['value']))
+        print_tree(node['left'], depth + 1)
+        print_tree(node['right'], depth + 1)
 
     else:
 
-        print('%s[%s]' % ((depth*' ', node)))
-
-
-# Implement
-
-dataset = [[2.771244718, 1.784783929, 0], [1.728571309, 1.169761413, 0], [3.678319846, 2.81281357, 0], [3.961043357, 2.61995032, 0],
-           [2.999208922, 2.209014212, 0], [7.497545867, 3.162953546, 1], [9.00220326, 3.339047188, 1], [7.444542326, 0.476683375, 1],
-           [10.12493903, 3.234550982, 1], [6.642287351, 3.319983761, 1]]
-
-tree = build_tree(dataset, 1, 1)
-print_tree(tree)
+        print('{}[{}]'.format(depth*' ', node))
 
 
 # -------------------------------------------------------------------------------
@@ -211,213 +214,99 @@ def predict(node, sample):
             return node['right']
 
 
-# Implement
-
-stump = {'feature': 0, 'right': 1, 'value': 6.642287351, 'left': 0}
-
-for sample in dataset:
-
-    prediction = predict(stump, sample)
-    print('Expected=%d, Got=%d' % (sample[-1], prediction))
-
-
-# Extract the class labels
-
-y = data.iloc[:100, 4].to_numpy()
-y = np.where(y == 'Iris-setosa', -1, 1)
-
-
-# Extract the features
-
-X = data.iloc[:100, [0, 2]].to_numpy()
-
-
-# Plot the features in a scatter plot
-
-plt.figure()
-plt.scatter(X[:50, 0], X[:50, 1], color='red', marker='+', label='Setosa')
-plt.scatter(X[50:, 0], X[50:, 1], color='blue', marker='+', label='Versicolor')
-plt.title('Scatter plot of the features')
-plt.xlabel('Sepal length [cm]')
-plt.ylabel('Petal length [cm]')
-plt.legend(loc='upper left')
-plt.savefig('images/01_perceptron/Scatter_plot_of_the_features.png')
-
-
 # -------------------------------------------------------------------------------
-# 2. DESIGN THE MODEL
+# 5. EVALUATE THE MODEL
 # -------------------------------------------------------------------------------
 
 
-# Design the perceptron
+# Classification and Regression Tree Algorithm
 
-class Perceptron:
+def decision_tree(train, test, max_depth, min_size):
 
-    """ Perceptron classifier
+    tree = build_tree(train, max_depth, min_size)
+    predictions = list()
 
-        Parameters:
-        ----------
-        eta : float
-            Learning rate (between 0.0 and 1.0)
-        n_epochs : int
-            Number of epochs.
+    for row in test:
 
-        Attributes:
-        ----------
-        w : array, shape = [n_features+1, ]
-            Weights after fitting.
-        n_misclass : list
-            Number of misclassifications (hence weight updates) in each epoch.
-    """
+        prediction = predict(tree, row)
+        predictions.append(prediction)
 
-    def __init__(self, eta=0.01, n_epochs=100):
-
-        self.eta = eta
-        self.n_epochs = n_epochs
-
-    def fit(self, X, y):
-
-        """ Fit training set
-
-            Parameters:
-            ----------
-            X : array, shape = [n_samples, n_features]
-            y : array, shape = [n_samples, ]
-
-            Returns:
-            -------
-            self : object
-        """
-
-        rgen = np.random.RandomState(seed=1)
-        self.w = rgen.normal(loc=0.0, scale=0.01, group_size=1 + X.shape[1])
-        self.n_misclass = []
-
-        for epoch in range(self.n_epochs):
-
-            misclass = 0
-
-            for Xi, yi in zip(X, y):
-
-                update = yi - self.step_activ(Xi)
-                self.w[0] += self.eta * update
-                self.w[1:] += self.eta * update * Xi
-                misclass += int(update != 0)
-
-            self.n_misclass.append(misclass)
-
-        return self
-
-    def step_activ(self, X):
-
-        """ Calculate the net input and return the class label prediction after the unit step function
-            (Used in the fit method and in plot_decision_regions function)
-
-            Parameters:
-            ----------
-            X : array, shape = [n_features, ] in fit method
-                array, shape = [X0X1_combs.shape[0], n_features] in plot_decision_regions function
-
-            Returns:
-            -------
-            step_activ : int in fit method
-                         array, shape = [X0X1_combs.shape[0], ] in plot_decision_regions function
-        """
-
-        net_input = self.w[0] + np.dot(X, self.w[1:])
-
-        return np.where(net_input >= 0, 1, -1)
+    return(predictions)
 
 
-# -------------------------------------------------------------------------------
-# 3. TRAIN THE MODEL
-# -------------------------------------------------------------------------------
+# Split a dataset into k folds
+
+def cross_validation_split(dataset, n_folds):
+
+    dataset_copy = list(dataset)
+    fold_size = int(len(dataset_copy) / n_folds)
+    dataset_split = list()
+
+    for i in range(n_folds):
+
+        fold = list()
+
+        while len(fold) < fold_size:
+
+            index = randrange(len(dataset_copy))
+            fold.append(dataset_copy.pop(index))
+
+        dataset_split.append(fold)
+
+    return dataset_split
 
 
-# Initialize a perceptron object
+# Calculate accuracy percentage
 
-ppn = Perceptron(eta=0.1, n_epochs=10)
+def accuracy_metric(actual, predicted):
 
+    correct = 0
 
-# Learn from the data via the fit method
+    for i in range(len(actual)):
 
-ppn.fit(X, y)
+        if actual[i] == predicted[i]:
 
+            correct += 1
 
-# Plot the number of misclassifications per epoch
-
-plt.figure()
-plt.plot(range(1, len(ppn.n_misclass) + 1), ppn.n_misclass, marker='o')
-plt.title('Number of misclassifications per epoch')
-plt.xlabel('Epoch')
-plt.ylabel('Number of misclassifications')
-plt.savefig('images/01_perceptron/Number_of_misclassifications_per_epoch.png')
+    return correct / float(len(actual)) * 100.0
 
 
-# -------------------------------------------------------------------------------
-# 4. EVALUATE THE MODEL
-# -------------------------------------------------------------------------------
+# Evaluate an algorithm using a cross validation split
+
+def evaluate_algorithm(dataset, algorithm, n_folds, *args):
+
+    folds = cross_validation_split(dataset, n_folds)
+    scores = list()
+
+    for fold in folds:
+
+        train_set = list(folds)
+        train_set.remove(fold)
+        train_set = sum(train_set, [])
+        test_set = list()
+
+        for sample in fold:
+
+            sample_copy = list(sample)
+            test_set.append(sample_copy)
+            sample_copy[-1] = None
+
+        predicted = algorithm(train_set, test_set, *args)
+        actual = [sample[-1] for sample in fold]
+        accuracy = accuracy_metric(actual, predicted)
+        scores.append(accuracy)
+
+    return scores
 
 
-# Function to plot the decision boundary
+# Evaluate algorithm
 
-def plot_decision_regions(X, y, classifier, resolution=0.02):
+n_folds = 5
+max_depth = 5
+min_size = 10
 
-    """ Create a colormap object.
-
-        Generate a matrix with two columns, where rows are all possible combinations of all numbers from min-1 to max+1 of the two series of
-        features. The matrix with two columns is needed because the perceptron was trained on a matrix with such shape.
-
-        Use the step_activ method of the ppn to predict the class corresponding to all the possible combinations of features generated in the
-        above matrix. The step_activ method will use the weights learnt during the training phase: since the number of misclassifications con-
-        verged during the training phase, we expect the perceptron to find a decision boundary that correctly classifies all the samples in
-        the training set.
-
-        Reshape the vector of predictions as the X0_grid.
-
-        Draw filled contours, where all possible combinations of features are associated to a Z, which is +1 or -1.
-
-        To verify that the perceptron correctly classified all the samples in the training set, plot the original features in the scatter
-        plot and verify that they fall inside the correct region.
-    """
-
-    colors = ('red', 'blue', 'green')
-    cmap = clr.ListedColormap(colors[:len(np.unique(y))])
-
-    X0_min, X0_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-    X1_min, X1_max = X[:, 1].min() - 1, X[:, 1].max() + 1
-    X0_grid, X1_grid = np.meshgrid(np.arange(X0_min, X0_max, resolution), np.arange(X1_min, X1_max, resolution))
-    X0X1_combs = np.array([X0_grid.ravel(), X1_grid.ravel()]).T
-
-    Z = classifier.step_activ(X0X1_combs)
-
-    Z = Z.reshape(X0_grid.shape)
-
-    plt.figure()
-    plt.contourf(X0_grid, X1_grid, Z, alpha=0.3, cmap=cmap)
-    plt.xlim(X0_min, X0_max)
-    plt.ylim(X1_min, X1_max)
-
-    for pos, cl in enumerate(np.unique(y)):
-
-        plt.scatter(x=X[y == cl, 0], y=X[y == cl, 1], alpha=0.8, color=colors[pos], marker='+', label=cl)
+scores = evaluate_algorithm(dataset, decision_tree, n_folds, max_depth, min_size)
+print('Scores: {}'.format(scores))
+print('Mean Accuracy: {:.3f}'.format(sum(scores)/float(len(scores))))
 
 
-# Plot the decision region and the data
-
-plot_decision_regions(X, y, classifier=ppn)
-plt.title('Decision boundary and training sample')
-plt.xlabel('Sepal length [cm]')
-plt.ylabel('Petal length [cm]')
-plt.legend(loc='upper left')
-plt.savefig('images/01_perceptron/Decision_boundary_and_training_sample.png')
-
-
-# -------------------------------------------------------------------------------
-# 5. GENERAL
-# -------------------------------------------------------------------------------
-
-
-# Show plots
-
-plt.show()

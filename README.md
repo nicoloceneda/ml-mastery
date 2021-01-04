@@ -23,7 +23,7 @@
 ├── 01_decision_tree.py                     <-- Implementation of a Classification And Regression Tree 
 │                                               algorithm for binary classification.
 │
-│                                                                                                │                                                
+│                                                                                                                                        
 └── 01_random_forest.py                     <-- Implementation of a Classification And Regression Random 
                                                 Forest algorithm for binary classification.
 
